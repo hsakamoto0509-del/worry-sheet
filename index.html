@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>悩み事→感情→望む状態→解決策（ユーザー別URL対応）</title>
+  <style>
+    :root { --bg:#f7f7f7; --fg:#111; --muted:#6b7280; --card:#fff; --border:#e5e7eb; --accent:#111; --accentText:#fff; --ok:#065f46; --okbg:#ecfdf5; --warn:#4338ca; --warnbg:#eef2ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif; }
+    .container { max-width:960px; margin:0 auto; padding:16px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    .muted { color: var(--muted); font-size: 12px; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:12px 0; }
+    .spacer { flex:1; }
+    .btn { appearance:none; border-radius:12px; font-size:14px; padding:10px 14px; border:1px solid var(--border); background:#fff; color:var(--fg); cursor:pointer; }
+    .btn[disabled]{ opacity:.6; pointer-events:none; }
+    .btn.primary { background:var(--accent); color:var(--accentText); border-color:var(--accent); }
+    .btn.danger { border-color:#fecaca; color:#b91c1c; }
+    .input, .select, .textarea { border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; width:100%; background:#fff; }
+    .textarea { min-height: 84px; resize: vertical; }
+    .progress { width:100%; height:12px; background:#e5e7eb; border-radius:999px; overflow:hidden; }
+    .bar { height:100%; background:#111; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .card-h { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .chip { display:inline-block; font-size:12px; padding:4px 8px; border-radius:999px; border:1px solid var(--border); }
+    .chip.done { background:#111; color:#fff; border-color:#111; }
+    .chip.working { background:#f3f4f6; }
+    .card-b { padding:12px 16px; font-size:14px; }
+    .row { display:grid; grid-template-columns: 1fr; gap:6px; margin:6px 0; }
+    .row label { color:var(--muted); font-size:12px; }
+    .actions { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+    .empty { margin-top:12px; padding:20px; font-size:14px; color:#4b5563; }
+    .thanks { background:var(--warnbg); color:#3730a3; border:1px solid #c7d2fe; padding:10px 12px; border-radius:12px; margin:8px 0; font-size:13px; }
+    .congrats { background:var(--okbg); color:var(--ok); border:1px solid #a7f3d0; padding:10px 12px; border-radius:12px; margin:8px 0; font-size:13px; }
+    /* Modal */
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; padding:16px; }
+    .sheet { background:#fff; border-radius:16px; width:100%; max-width:720px; border:1px solid var(--border); }
+    .sheet-h { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid var(--border); }
+    .sheet-b { padding:12px 16px; }
+    .sheet-f { padding:12px 16px; border-top:1px solid var(--border); display:flex; gap:8px; justify-content:flex-end; }
+    .steps { display:flex; align-items:center; gap:6px; }
+    .dot { width:10px; height:10px; border-radius:50%; background:#d1d5db; }
+    .dot.on { background:#111; }
+    .okbox { background:#f9fafb; color:#111; border:1px solid #e5e7eb; padding:10px 12px; border-radius:12px; margin-top:6px; position:relative; overflow:hidden; }
+    .okflash { position:absolute; inset:0; display:none; align-items:center; justify-content:center; background:rgba(236,253,245,0.9); color:#065f46; font-weight:600; }
+    .grid2 { display:grid; grid-template-columns: 1fr; gap:8px; }
+    @media (min-width:640px){ .grid2 { grid-template-columns: 1 fr 1fr; } }
+    /* UID modal */
+    .dim { position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:16px; }
+    .panel { background:#fff; border:1px solid var(--border); border-radius:16px; width:100%; max-width:520px; padding:16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>悩み事 → 感情 → 望む状態 → 解決策</h1>
+      <div class="muted">ローカル保存・CSVエクスポート対応（スマホ対応）</div>
+      <div id="userTag" class="muted" style="margin-top:4px;"></div>
+      <div id="thanks" class="thanks" style="display:none;">今日も一日ありがとう！</div>
+      <div id="congrats" class="congrats" style="display:none;">🎉 よく書けました！（保存完了）</div>
+    </header>
+
+    <div class="toolbar">
+      <button class="btn primary" id="newBtn">新規追加（ガイド）</button>
+      <button class="btn" id="csvBtn">CSVエクスポート</button>
+      <div class="spacer"></div>
+      <input class="input" id="q" placeholder="検索（悩み事・感情・解決策など）" style="max-width:220px;" />
+      <select class="select" id="filter">
+        <option value="ALL">すべて</option>
+        <option value="未着手">未着手</option>
+        <option value="進行中">進行中</option>
+        <option value="完了">完了</option>
+      </select>
+    </div>
+
+    <div class="progress"><div class="bar" id="bar" style="width:0%"></div></div>
+    <div class="muted" id="rate" style="margin:4px 0 12px;">完了率: 0%</div>
+
+    <div id="list" class="grid"></div>
+    <div id="empty" class="card empty" style="display:none;">右上の「新規追加（ガイド）」から、まずは1件入力してみてください。</div>
+  </div>
+
+  <!-- UID Setup Modal -->
+  <div class="dim" id="uidModal">
+    <div class="panel">
+      <div style="font-weight:600; margin-bottom:8px;">あなた専用リンクを作成</div>
+      <div class="muted" style="margin-bottom:10px;">名前やIDを入れて「リンク作成」を押すと、このページが <code>?u=◯◯</code> 付きで開きます。ホーム画面に追加する際は、必ずそのリンクで追加してください。</div>
+      <input id="uidInput" class="input" placeholder="例：hana / taro123 / 任意のID" />
+      <div class="actions" style="margin-top:10px; justify-content:flex-end;">
+        <button class="btn" id="uidCancel">閉じる</button>
+        <button class="btn primary" id="uidMake">リンク作成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Guide Modal -->
+  <div class="modal" id="modal" style="display:none;">
+    <div class="sheet">
+      <div class="sheet-h">
+        <div>段階入力ガイド</div>
+        <button class="btn" id="closeModal" title="閉じる">×</button>
+      </div>
+      <div class="sheet-b">
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px; color:#6b7280;">
+          <div>ステップ <span id="stepNow">1</span> / <span id="stepTotal">4</span></div>
+          <div class="steps" id="stepDots"></div>
+        </div>
+
+        <div class="row" style="margin-top:10px;">
+          <label id="fieldLabel">悩み事（事実・状況）</label>
+          <input id="fieldInput" class="input" placeholder="例：Aさんとの面談準備が進んでいない" />
+          <textarea id="fieldTextarea" class="textarea" style="display:none;" placeholder=""></textarea>
+        </div>
+
+        <div id="okBox" class="okbox" style="display:none;">
+          <div style="font-size:12px;">次に進みますか？</div>
+          <div class="actions" style="margin-top:6px;">
+            <button class="btn primary" id="yesBtn">はい</button>
+            <button class="btn" id="noBtn">いいえ</button>
+          </div>
+          <div id="okFlash" class="okflash">🎉 よく書けました！</div>
+        </div>
+
+        <div class="grid2" style="margin-top:10px;">
+          <div class="row">
+            <label>日付</label>
+            <input id="dateInput" type="date" class="input" />
+          </div>
+          <div class="row">
+            <label>ステータス</label>
+            <select id="statusInput" class="select">
+              <option value="未着手">未着手</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="sheet-f">
+        <button class="btn" id="cancelBtn">閉じる</button>
+        <button class="btn primary" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    let LS_KEY = "worry_sheet_v1"; // will be replaced with per-user key
+    const EOL = "\\r\\n";
+    let items = [];
+    let filter = "ALL";
+    let q = "";
+    let editing = null;
+    let guideStep = 0; // 0:悩み 1:感情 2:望む 3:具体策
+    let isStepping = false;
+
+    const steps = [
+      { key: "worry",   label: "悩み事（事実・状況）", placeholder: "例：Aさんとの面談準備が進んでいない", type: "input" },
+      { key: "feeling", label: "それに対する感情",     placeholder: "例：不安、焦り、もやもや",         type: "input" },
+      { key: "desire",  label: "悩み事をどうしたいか（望む状態）", placeholder: "例：面談前に論点整理ができて落ち着いて臨めている", type: "textarea" },
+      { key: "solution",label: "具体的な解決策（プラン）", placeholder: "例：①目的と論点を3つに整理 ②資料収集 ③朝リハーサル", type: "textarea" },
+    ];
+
+    // Elements
+    const listEl = document.getElementById("list");
+    const emptyEl = document.getElementById("empty");
+    const barEl = document.getElementById("bar");
+    const rateEl = document.getElementById("rate");
+    const newBtn = document.getElementById("newBtn");
+    const csvBtn = document.getElementById("csvBtn");
+    const qEl = document.getElementById("q");
+    const filterEl = document.getElementById("filter");
+    const thanksEl = document.getElementById("thanks");
+    const congratsEl = document.getElementById("congrats");
+    const userTag = document.getElementById("userTag");
+    // UID modal
+    const uidModal = document.getElementById("uidModal");
+    const uidInput = document.getElementById("uidInput");
+    const uidMake = document.getElementById("uidMake");
+    const uidCancel = document.getElementById("uidCancel");
+
+    // Guide modal elements
+    const modalEl = document.getElementById("modal");
+    const closeModal = document.getElementById("closeModal");
+    const cancelBtn = document.getElementById("cancelBtn");
+    const saveBtn = document.getElementById("saveBtn");
+    const stepNow = document.getElementById("stepNow");
+    const stepTotal = document.getElementById("stepTotal");
+    const stepDots = document.getElementById("stepDots");
+    const fieldLabel = document.getElementById("fieldLabel");
+    const fieldInput = document.getElementById("fieldInput");
+    const fieldTextarea = document.getElementById("fieldTextarea");
+    const yesBtn = document.getElementById("yesBtn");
+    const noBtn = document.getElementById("noBtn");
+    const okBox = document.getElementById("okBox");
+    const okFlash = document.getElementById("okFlash");
+    const dateInput = document.getElementById("dateInput");
+    const statusInput = document.getElementById("statusInput");
+
+    function params(){ return new URLSearchParams(location.search); }
+    function uidFromURL(){ return params().get("u") || ""; }
+
+    function setUid(uid){
+      const p = params();
+      p.set("u", uid);
+      location.replace(location.pathname + "?" + p.toString());
+    }
+
+    function ensureUid(){
+      let uid = uidFromURL();
+      if(!uid){
+        uidModal.style.display = "flex";
+        userTag.textContent = "（専用IDが未設定です）";
+      }else{
+        uidModal.style.display = "none";
+        userTag.textContent = "このページは「" + uid + "」さん用";
+      }
+      return uid;
+    }
+
+    function uidify(s){
+      return String(s).trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g,"").slice(0,40) || "user";
+    }
+
+    function uidInit(){
+      const uid = ensureUid();
+      if(!uid) return false;
+      LS_KEY = "worry_sheet_" + uid;
+      return true;
+    }
+
+    function today(){
+      const d = new Date();
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      return d.getFullYear()+"-"+mm+"-"+dd;
+    }
+
+    function load(){
+      try { items = JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch(e){ items=[]; }
+    }
+    function save(){
+      try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch(e){}
+    }
+
+    function escapeCell(v){
+      const s = (v==null?"":String(v)).replace(/\"/g,'\"\"');
+      return "\""+s+"\"";
+    }
+    function exportCSV(rows){
+      const header = ["日付","悩み事（事実・状況）","それに対する感情","悩み事をどうしたいか（望む状態）","具体的な解決策（プラン）","ステータス"];
+      const lines = rows.map(r => [r.date,r.worry,r.feeling,r.desire,r.solution,r.status].map(escapeCell).join(","));
+      const csv = [header.map(escapeCell).join(","), ...lines].join(EOL);
+      const blob = new Blob(["\ufeff"+csv], {type:"text/csv;charset=utf-8;"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "悩み事シート_"+today()+".csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function filtered(){
+      let base = items;
+      if(filter !== "ALL") base = base.filter(i => i.status === filter);
+      const needle = q.trim().toLowerCase();
+      if(!needle) return base;
+      return base.filter(i => [i.worry,i.feeling,i.desire,i.solution].some(v => (v||"").toLowerCase().includes(needle)));
+    }
+
+    function renderProgress(){
+      if(items.length===0){ barEl.style.width="0%"; rateEl.textContent="完了率: 0%"; return; }
+      const done = items.filter(i=>i.status==="完了").length;
+      const pct = Math.round(done/items.length*100);
+      barEl.style.width = pct+"%";
+      rateEl.textContent = "完了率: "+pct+"%";
+    }
+
+    function escapeHTML(s){
+      s = String(s);
+      return s.replace(/[&<>\"']/g, function(c){
+        if (c === '&') return '&amp;';
+        if (c === '<') return '&lt;';
+        if (c === '>') return '&gt;';
+        if (c === '"') return '&quot;';
+        return '&#39;';
+      });
+    }
+
+    function renderList(){
+      const list = filtered();
+      listEl.innerHTML = "";
+      if(list.length===0){
+        emptyEl.style.display = items.length===0 ? "block" : "none";
+      } else {
+        emptyEl.style.display = "none";
+      }
+      list.forEach(it => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.innerHTML = `
+          <div class="card-h">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span class="chip ${it.status==="完了"?"done":(it.status==="進行中"?"working":"")}">${it.status}</span>
+              <div style="font-weight:600;">${escapeHTML(it.worry || "（無題）")}</div>
+            </div>
+            <div class="muted">${escapeHTML(it.date || "")}</div>
+          </div>
+          <div class="card-b">
+            <div class="row"><label>感情</label><div>${escapeHTML(it.feeling||"")}</div></div>
+            <div class="row"><label>どうしたい（望む状態）</label><div>${escapeHTML(it.desire||"")}</div></div>
+            <div class="row"><label>具体的な解決策</label><div style="white-space:pre-wrap">${escapeHTML(it.solution||"")}</div></div>
+            <div class="actions">
+              <button class="btn" data-act="edit">編集（ガイド）</button>
+              <button class="btn danger" data-act="del">削除</button>
+              ${it.status!=="完了"?'<button class="btn primary" data-act="done">完了にする</button>':""}
+            </div>
+          </div>
+        `;
+        card.querySelector('[data-act="edit"]').addEventListener("click", ()=> { editing = {...it}; guideStep=0; openModal(); });
+        card.querySelector('[data-act="del"]').addEventListener("click", ()=> { items = items.filter(p=>p.id!==it.id); save(); renderAll(); });
+        const doneBtn = card.querySelector('[data-act="done"]');
+        if(doneBtn){ doneBtn.addEventListener("click", ()=> { it.status="完了"; save(); renderAll(); }); }
+        listEl.appendChild(card);
+      });
+    }
+
+    function renderAll(){
+      renderList();
+      renderProgress();
+    }
+
+    // ---- Modal / Guide ----
+    function openModal(){
+      if(!editing){
+        editing = { id:"tmp", date: today(), worry:"", feeling:"", desire:"", solution:"", status:"未着手" };
+        guideStep = 0;
+      }
+      stepTotal.textContent = String(steps.length);
+      updateStepUI();
+      modalEl.style.display = "flex";
+    }
+    function closeModalFn(){ modalEl.style.display="none"; editing=null; }
+
+    function updateStepUI(){
+      stepNow.textContent = String(guideStep+1);
+      stepDots.innerHTML = "";
+      steps.forEach((_,i)=>{
+        const d = document.createElement("div");
+        d.className = "dot"+(i<=guideStep?" on":"");
+        stepDots.appendChild(d);
+      });
+
+      const step = steps[guideStep];
+      fieldLabel.textContent = step.label;
+      fieldInput.style.display = step.type === "input" ? "block" : "none";
+      fieldTextarea.style.display = step.type === "textarea" ? "block" : "none";
+      const val = editing[step.key] || "";
+      if(step.type==="input"){
+        fieldInput.value = val;
+        fieldInput.placeholder = step.placeholder;
+      } else {
+        fieldTextarea.value = val;
+        fieldTextarea.placeholder = step.placeholder;
+      }
+      okBox.style.display = String(val).trim().length > 0 ? "block" : "none";
+      okFlash.style.display = "none";
+
+      dateInput.value = editing.date || today();
+      statusInput.value = editing.status || "未着手";
+      isStepping = false;
+    }
+
+    function setCurrentValue(v){
+      const key = steps[guideStep].key;
+      editing[key] = v;
+      const show = String(v).trim().length>0;
+      okBox.style.display = show ? "block" : "none";
+      okFlash.style.display = "none";
+    }
+
+    function stepCongratsThenNext(){
+      if(isStepping) return;
+      isStepping = true;
+      okFlash.style.display = "flex";
+      yesBtn.setAttribute("disabled","true");
+      noBtn.setAttribute("disabled","true");
+      setTimeout(()=>{
+        okFlash.style.display = "none";
+        yesBtn.removeAttribute("disabled");
+        noBtn.removeAttribute("disabled");
+        if(guideStep < steps.length-1){
+          guideStep++;
+          updateStepUI();
+        } else {
+          doSave(true);
+        }
+      }, 800);
+    }
+
+    function doSave(showCongrats){
+      if(!editing.worry || !editing.feeling || !editing.desire || !editing.solution){
+        alert("必須項目（4つ）を入力してください。");
+        isStepping = false;
+        return;
+      }
+      const payload = {...editing};
+      delete payload.id;
+      if(editing.id==="tmp"){
+        payload.id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        items = [payload, ...items];
+      }else{
+        payload.id = editing.id;
+        items = items.map(p => p.id===payload.id ? payload : p);
+      }
+      save(); renderAll(); closeModalFn();
+      if(showCongrats){
+        congratsEl.style.display="block";
+        setTimeout(()=>{ congratsEl.style.display="none"; }, 3000);
+      }
+      isStepping = false;
+    }
+
+    function saveNow(){ doSave(true); }
+
+    function saveDraftAndThanks(){
+      const payload = {...editing};
+      delete payload.id;
+      if(editing.id==="tmp"){
+        payload.id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        items = [payload, ...items];
+      }else{
+        payload.id = editing.id;
+        items = items.map(p => p.id===payload.id ? payload : p);
+      }
+      save(); renderAll(); closeModalFn();
+      thanksEl.style.display="block";
+      setTimeout(()=>{ thanksEl.style.display="none"; }, 3000);
+    }
+
+    // Events
+    newBtn.addEventListener("click", ()=>{ editing=null; openModal(); });
+    csvBtn.addEventListener("click", ()=> exportCSV(filtered()) );
+    qEl.addEventListener("input", (e)=>{ q=e.target.value; renderAll(); });
+    filterEl.addEventListener("change", (e)=>{ filter=e.target.value; renderAll(); });
+
+    closeModal.addEventListener("click", closeModalFn);
+    cancelBtn.addEventListener("click", closeModalFn);
+    saveBtn.addEventListener("click", saveNow);
+
+    fieldInput.addEventListener("input", (e)=> setCurrentValue(e.target.value));
+    fieldTextarea.addEventListener("input", (e)=> setCurrentValue(e.target.value));
+
+    yesBtn.addEventListener("click", stepCongratsThenNext);
+    noBtn.addEventListener("click", saveDraftAndThanks);
+
+    dateInput.addEventListener("change", (e)=>{ editing.date = e.target.value; });
+    statusInput.addEventListener("change", (e)=>{ editing.status = e.target.value; });
+
+    // UID modal handlers
+    uidMake.addEventListener("click", ()=>{
+      const raw = uidInput.value;
+      const id = String(raw).trim();
+      if(!id){ alert("IDを入力してください"); return; }
+      const slug = id.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g,"").slice(0,40) || "user";
+      const p = new URLSearchParams(location.search);
+      p.set("u", slug);
+      location.replace(location.pathname + "?" + p.toString());
+    });
+    uidCancel.addEventListener("click", ()=>{ uidModal.style.display = "none"; });
+
+    // Init
+    if(uidInit()){
+      load();
+      renderAll();
+    }
+  })();
+  </script>
+</body>
+</html>
